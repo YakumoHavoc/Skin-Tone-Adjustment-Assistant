@@ -1,0 +1,95 @@
+import Foundation
+
+/// 命令行模式：`SkinTone --analyze "#C0504D"`，用于在终端直接查看调色建议
+/// （也方便在没有界面的环境下核对引擎结论）
+enum CLIRunner {
+
+    static func runIfNeeded() {
+        let args = CommandLine.arguments
+        guard let index = args.firstIndex(where: { $0 == "--analyze" || $0 == "-a" }),
+              index + 1 < args.count else {
+            if args.contains("--help") || args.contains("-h") {
+                printUsage()
+                exit(0)
+            }
+            return
+        }
+
+        let raw = args[index + 1]
+        guard let rgb = RGBColor(hex: raw) else {
+            FileHandle.standardError.write("无法解析颜色「\(raw)」，请使用 #RRGGBB 或 RRGGBB 格式\n".data(using: .utf8)!)
+            exit(1)
+        }
+
+        // 可选第三个参数：手动指定分类（极端环境还原用）
+        var assumed: SkinKind?
+        if index + 2 < args.count {
+            switch args[index + 2].lowercased() {
+            case "skin", "肤色":            assumed = .skin
+            case "non-skin", "nonskin", "非肤色": assumed = .nonSkin
+            case "auto", "自动":            assumed = nil
+            default:                        assumed = nil
+            }
+        }
+
+        let a = ColorEngine.analyze(rgb, assumed: assumed)
+        let hsb = a.sourceHSB
+        let isSkin = a.classification.isSkin
+
+        print("取色        \(a.source.hexString)")
+        print("RGB         \(a.source.rgb255String)")
+        print("HSB         H \(hsb.hueText)  S \(hsb.saturationText)  B \(hsb.brightnessText)")
+        print("分类        \(a.classification.label)")
+        print("            \(a.classification.reason)")
+        print("判定        \(isSkin ? a.bias.rawValue : "不适用（非肤色）")  （偏离度 \(String(format: "%.2f", a.severity))）")
+        print("")
+        print(a.diagnosis)
+        if !isSkin {
+            print("")
+            print("该点是非肤色：下面的肤色步骤只作参考；若想让这个颜色本身更干净，看「去灰建议」。")
+        }
+        print("")
+        for (i, step) in a.steps.enumerated() {
+            print("第 \(i + 1) 步 · 通道「\(step.channel)」  \(step.headline)")
+            for move in step.moves {
+                print("    · \(move.text)    — \(move.why)")
+            }
+            print("    说明：\(step.reason)")
+            print("")
+        }
+        let d = a.degreying
+        print("去灰建议（减补色 = 加主色）")
+        print("    主色 \(d.primaryPair.joined(separator: " + "))  ←→  补色 \(d.complementPair.joined(separator: " + "))")
+        print("    \(d.familyDetail)    灰化程度 \(d.graynessText)")
+        for move in d.moves {
+            print("    · \(move.text)    — \(move.why)")
+        }
+        print("    \(d.summary)")
+        for line in d.examples { print("    \(line)") }
+        print("")
+        print(isSkin ? "目标肤色    \(a.target.hexString)" : "目标肤色    不适用（非肤色）")
+        print("")
+        print("原理要点")
+        for t in a.theory { print("  · \(t)") }
+        print("")
+        print("参考区间    色相 \(Int(ColorEngine.healthyHueRange.lowerBound))°–\(Int(ColorEngine.healthyHueRange.upperBound))°  "
+              + "饱和 \(Int(ColorEngine.healthySatRange.lowerBound * 100))%–\(Int(ColorEngine.healthySatRange.upperBound * 100))%  "
+              + "明度 60%–85%")
+        exit(0)
+    }
+
+    private static func printUsage() {
+        print("""
+        肤色助手 — 屏幕取色与肤色调整建议
+
+        用法：
+          SkinTone                     启动图形界面（全局快捷键 ⌃⌥C 取色）
+          SkinTone --analyze #C0504D   命令行分析指定颜色并输出调色建议
+          SkinTone --analyze #8FA9C4 肤色
+                                       手动指定为肤色（极端环境肤色还原）
+          SkinTone --analyze #C0504D 非肤色
+                                       手动指定为非肤色（只看颜色本身）
+          SkinTone --help              显示本帮助
+        """)
+    }
+}
