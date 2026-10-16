@@ -32,6 +32,8 @@ final class PhotoMatchModel: ObservableObject {
     @Published private(set) var message: String = ""
     /// 正在被拖拽悬停的卡片（用于高亮），nil = 当前没有拖拽
     @Published var dragTarget: Role?
+    @Published private(set) var loadingReference = false
+    @Published private(set) var loadingTarget = false
 
     var plan: MatchPlan? {
         guard let ref = reference, let tgt = target else { return nil }
@@ -48,15 +50,40 @@ final class PhotoMatchModel: ObservableObject {
         "点这里导入\(role.title)，也可把图片从 Finder 直接拖进来\n（PNG / JPEG / TIFF / HEIC）"
     }
 
+    /// 该角色是否正在载入
+    func isLoading(_ role: Role) -> Bool {
+        role == .reference ? loadingReference : loadingTarget
+    }
+
+    /// 载入照片。解码与逐像素统计都在后台队列上做，算完只回主线程赋一次值：
+    /// 拖动导入与面板导入走的都是这条路径，大图也不会把界面卡住。
     func load(_ url: URL, as role: Role) {
-        guard let result = PhotoAnalyzer.load(url: url) else {
-            message = "读不出这张照片：\(url.lastPathComponent)。请换一张常见格式的图片。"
-            return
+        // Finder 拖过来的可能是 `.file/id=` 形式的文件引用 URL，先归一化成真实路径
+        let fileURL = (url as NSURL).filePathURL ?? url
+        guard !isLoading(role) else { return }
+        setLoading(true, for: role)
+        message = "正在载入\(role.title)：\(fileURL.lastPathComponent)…"
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            let result = PhotoAnalyzer.load(url: fileURL)
+            DispatchQueue.main.async {
+                self.setLoading(false, for: role)
+                guard let result else {
+                    self.message = "读不出这张照片：\(fileURL.lastPathComponent)。请换一张常见格式的图片。"
+                    return
+                }
+                let image = NSImage(cgImage: result.image,
+                                    size: NSSize(width: result.image.width, height: result.image.height))
+                let photo = LoadedPhoto(name: fileURL.lastPathComponent, url: fileURL,
+                                        stats: result.stats, image: image)
+                if role == .reference { self.reference = photo } else { self.target = photo }
+                self.message = "已载入\(role.title)：\(photo.name)"
+            }
         }
-        let photo = LoadedPhoto(name: url.lastPathComponent, url: url,
-                                stats: result.stats, image: result.image)
-        if role == .reference { reference = photo } else { target = photo }
-        message = "已载入\(role.title)：\(photo.name)"
+    }
+
+    private func setLoading(_ value: Bool, for role: Role) {
+        if role == .reference { loadingReference = value } else { loadingTarget = value }
     }
 
     func clear(_ role: Role) {

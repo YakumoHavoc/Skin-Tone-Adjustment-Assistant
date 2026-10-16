@@ -72,8 +72,9 @@ struct PhotoStats: Hashable {
 /// 照片载入与统计
 enum PhotoAnalyzer {
 
-    /// 载入照片（缩到 maxPixel 以便快速统计），返回统计结果与用于显示的图
-    static func load(url: URL, maxPixel: Int = 640) -> (stats: PhotoStats, image: NSImage)? {
+    /// 载入照片（缩到 maxPixel 以便快速统计），返回统计结果与缩略图。
+    /// 只做离屏解码与统计、不碰 AppKit 视图对象，所以在后台队列调用是安全的。
+    static func load(url: URL, maxPixel: Int = 640) -> (stats: PhotoStats, image: CGImage)? {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
         let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
@@ -85,8 +86,7 @@ enum PhotoAnalyzer {
         guard let pixels = rgbPixels(cgImage) else { return nil }
         let stats = analyze(name: url.lastPathComponent, pixels: pixels,
                             width: cgImage.width, height: cgImage.height)
-        let image = NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
-        return (stats, image)
+        return (stats, cgImage)
     }
 
     /// 六个色相带的分带索引（红 / 黄 / 绿 / 青 / 蓝 / 洋红 各占 60°）

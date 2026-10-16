@@ -190,7 +190,17 @@ struct PhotoCard: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if let photo {
+            if model.isLoading(role) {
+                VStack(spacing: 10) {
+                    ProgressView().controlSize(.small)
+                    Text("正在载入\(role.title)…")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, minHeight: 200)
+                .background(Color.black.opacity(0.03))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            } else if let photo {
                 Image(nsImage: photo.image)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
@@ -291,28 +301,31 @@ struct PhotoDropDelegate: DropDelegate {
 
     func performDrop(info: DropInfo) -> Bool {
         model.dragTarget = nil
-        let providers = info.itemProviders(for: [.fileURL])
-        guard !providers.isEmpty else { return false }
-        for provider in providers {
-            provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
-                guard let url = Self.fileURL(from: item) else { return }
-                // 载入回调不在主线程，写 @Published 前必须切回主线程
-                DispatchQueue.main.async { model.load(url, as: role) }
-            }
+        // 一次只取第一张：多张图会串行叠 N 次全量载入，明显拖慢
+        guard let provider = info.itemProviders(for: [.fileURL]).first else { return false }
+        provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
+            guard let url = Self.fileURL(from: item) else { return }
+            // 载入回调不在主线程，写 @Published 前必须切回主线程
+            DispatchQueue.main.async { model.load(url, as: role) }
         }
         return true
     }
 
     /// 拖拽项可能是 Data / NSURL / String，统一还原成文件 URL
     private static func fileURL(from item: Any?) -> URL? {
-        if let data = item as? Data, let url = URL(dataRepresentation: data, relativeTo: nil) {
-            return url.isFileURL ? url : nil
+        let raw: URL?
+        if let data = item as? Data {
+            raw = URL(dataRepresentation: data, relativeTo: nil)
+        } else if let url = item as? URL {
+            raw = url
+        } else if let string = item as? String {
+            raw = URL(string: string)
+        } else {
+            raw = nil
         }
-        if let url = item as? URL { return url.isFileURL ? url : nil }
-        if let string = item as? String, let url = URL(string: string) {
-            return url.isFileURL ? url : nil
-        }
-        return nil
+        guard let url = raw, url.isFileURL else { return nil }
+        // Finder 拖来的是 `.file/id=` 文件引用 URL 时，先归一化成真实路径
+        return (url as NSURL).filePathURL ?? url
     }
 }
 
