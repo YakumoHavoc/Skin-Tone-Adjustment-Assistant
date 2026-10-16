@@ -13,10 +13,10 @@ struct SkinToneApp: App {
 
     var body: some Scene {
         Window("肤色助手 · 取色与调色建议", id: "main") {
-            ContentView()
+            ShellView()
                 .environmentObject(model)
         }
-        .defaultSize(width: 1120, height: 720)
+        .defaultSize(width: 1200, height: 720)
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("开始取色（\(model.hotKeyDisplay)）") { model.startPick() }

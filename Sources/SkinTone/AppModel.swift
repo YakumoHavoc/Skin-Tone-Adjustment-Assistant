@@ -15,6 +15,10 @@ final class AppModel: ObservableObject {
     @Published var hexInput = ""
     /// 手动指定的分类（nil = 自动判定），极端环境下可覆盖自动结果
     @Published private(set) var manualKind: SkinKind?
+    /// 当前功能区：肤色取色 / 照片仿色
+    @Published var section: AppSection = .skin
+    /// 左侧侧边栏是否展开
+    @Published var isSidebarVisible = true
 
     let hotKeys = HotKeyManager()
     private let picker = ColorPickerService()

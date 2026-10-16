@@ -59,6 +59,8 @@ struct SliderMove: Hashable {
 struct ChannelStep: Hashable {
     let channel: String
     let headline: String
+    /// 在 Photoshop 里的操作路径：进哪个对话框 / 面板，选哪个通道，动哪些控件
+    let path: String
     let moves: [SliderMove]
     let reason: String
 }
@@ -82,6 +84,8 @@ struct DegreyingAdvice: Hashable {
     let complementPair: [String]
     /// 灰化程度 0...1，越大说明混入的补色越多
     let grayness: Double
+    /// 在 Photoshop 里的操作路径
+    let path: String
     /// 具体操作（减去补色）
     let moves: [SliderMove]
     let summary: String
@@ -130,7 +134,26 @@ enum ColorEngine {
     static let healthyHueRange: ClosedRange<Double> = 15...45
     static let healthySatRange: ClosedRange<Double> = 0.25...0.62
 
-    /// assumed 为手动指定的分类：与自动判定不一致时走专门的极端环境还原 / 非肤色处理
+    // MARK: - Photoshop 操作路径（各步骤共用）
+
+    /// 「可选颜色」的入口：对话框与调整图层两种走法
+    private static let selectiveEntry = "菜单「图像 › 调整 › 可选颜色」（没有快捷键），或用调整图层：图层面板底部第 4 个图标 › 可选颜色"
+
+    /// 选通道之后的收尾提示
+    private static let selectiveTail = "，按下面数值拖底部滑块；「相对 / 绝对」保持默认的「相对」即可（改动更小、过渡更稳）"
+
+    /// 「可选颜色」里先选哪个通道
+    private static func selective(_ channel: String) -> String {
+        "\(selectiveEntry) → 面板顶部「颜色」下拉选「\(channel)」"
+    }
+
+    /// 「可选颜色」底部只有 CMY+K 四个滑块，写清与原色的换算
+    private static let cmyNote = "注意「可选颜色」底部只有「青色 / 洋红 / 黄色 / 黑色」四个滑块：加红＝洋红＋黄，加绿＝黄＋青，加蓝＝青＋洋红；减红＝加青，减绿＝加洋红，减蓝＝加黄。"
+
+    /// 整体提亮 / 压暗的两种走法
+    private static let lightenPath = "用「曲线」（⌘M）把曲线中段整条往上抬一点"
+    private static let darkenPath = "用「亮度/对比度」调整图层把「亮度」往左拖一点"
+
     static func analyze(_ color: RGBColor, assumed: SkinKind? = nil) -> Analysis {
         let auto = classifySkin(color)
         let kind = assumed ?? auto.kind
@@ -218,7 +241,7 @@ enum ColorEngine {
     ]
 
     /// 取色点最接近的色相家族名
-    private static func hueFamily(_ hue: Double) -> String {
+    static func hueFamily(_ hue: Double) -> String {
         var best = twelveNames[0].name
         var bestDistance = 360.0
         for item in twelveNames {
@@ -351,6 +374,7 @@ enum ColorEngine {
             ChannelStep(
                 channel: "红色",
                 headline: "单独压低「红色」通道",
+                path: selective("红色") + selectiveTail + "；加蓝写作「黄色」滑块的负值，提亮写作「黑色」滑块的负值。",
                 moves: [
                     SliderMove(text: "青色 +\(cyan)", why: "青是红的互补色，加青直接把红色压下去"),
                     SliderMove(text: "蓝色 +\(blue)", why: "蓝是青的邻近支持色（在「可选颜色」里等于黄色 −\(blue)），补青压得更干净"),
@@ -387,6 +411,7 @@ enum ColorEngine {
             ChannelStep(
                 channel: "红色",
                 headline: "第一步：先调「红色」通道",
+                path: selective("红色") + selectiveTail + "；加蓝写作「黄色」滑块的负值。",
                 moves: [
                     SliderMove(text: "青色 +\(redCyan)", why: "橙 = 红 + 黄，先把其中的红用青压住"),
                     SliderMove(text: "蓝色 +\(redBlue)", why: "蓝色作青的支持色（可选颜色里为黄色 −\(redBlue)），红这一路收干净")
@@ -396,6 +421,7 @@ enum ColorEngine {
             ChannelStep(
                 channel: "黄色",
                 headline: "第二步：再调「黄色」通道",
+                path: selective("黄色") + selectiveTail + "。",
                 moves: [
                     SliderMove(text: "蓝色 +\(yellowBlue)", why: "蓝压黄，把橙色里的黄一路收掉（可选颜色里为黄色 −\(yellowBlue)）"),
                     SliderMove(text: "青色 +\(yellowCyan)", why: "青与黄互补，叠加后橙味明显减弱")
@@ -405,6 +431,7 @@ enum ColorEngine {
             ChannelStep(
                 channel: "整体明度",
                 headline: "第三步：整体提亮",
+                path: "\(lightenPath)；或在「可选颜色」里选「中性灰」通道，把「黑色」滑块拖到负值（黑色 −N 即提亮）。",
                 moves: [
                     SliderMove(text: "亮度 +\(lighten)", why: "亮度或曲线整体上抬，肤色才透；在可选颜色里就是黑色 −\(lighten)")
                 ],
@@ -438,6 +465,7 @@ enum ColorEngine {
             ChannelStep(
                 channel: "中性灰",
                 headline: "第一步：在「中性灰」通道补齐三原色",
+                path: selective("中性灰") + selectiveTail + "。" + cmyNote,
                 moves: [
                     SliderMove(text: "红色 +\(r)", why: "补回缺失的红，同时保留血色，红给得最多"),
                     SliderMove(text: "绿色 +\(g)", why: "绿与红是原色对，红绿相加趋白、趋干净"),
@@ -448,6 +476,7 @@ enum ColorEngine {
             ChannelStep(
                 channel: "中性灰 + 明度",
                 headline: "第二步：把灰色提亮",
+                path: "在「可选颜色」里选「中性灰」通道，把「黑色」滑块往负方向拖（黑色 −N 即提亮）；也可\(lightenPath)。",
                 moves: [
                     SliderMove(text: "明度 +\(lighten)", why: "在可选颜色里即黑色 −\(lighten)；只加亮不加色会更灰，先加色再加亮才对")
                 ],
@@ -456,6 +485,7 @@ enum ColorEngine {
             ChannelStep(
                 channel: "复查（可选）",
                 headline: "第三步：仍偏脏时再走一轮",
+                path: "同上，把「可选颜色」顶部通道换成「白色」再做一轮；整幅偏脏时也可以先用「色阶」（⌘L）把「输出色阶」的黑场右滑复核。" + cmyNote,
                 moves: [
                     SliderMove(text: "红 / 绿 / 蓝 各 +3 ~ +5", why: "红绿原色相加会变白变干净，配比保持近似 1:1:1 微调")
                 ],
@@ -488,6 +518,7 @@ enum ColorEngine {
             ChannelStep(
                 channel: "中性灰",
                 headline: "第一步：给灰加暖（红 + 黄）",
+                path: selective("中性灰") + selectiveTail + "；「洋红」即加红减绿、「黄色」即减蓝。",
                 moves: [
                     SliderMove(text: "洋红 +\(magenta)", why: "洋红即加红减绿，把偏绿偏青的冷味拉回来"),
                     SliderMove(text: "黄色 +\(yellow)", why: "加黄即减蓝，抵消皮肤里的冷蓝成分")
@@ -497,6 +528,7 @@ enum ColorEngine {
             ChannelStep(
                 channel: "青色 / 绿色（按需）",
                 headline: "第二步：直接压掉青绿",
+                path: "先判断画面是青味重还是绿味重，再回「可选颜色」顶部把通道从「中性灰」换成「青色」或「绿色」，只压其中一个。",
                 moves: [
                     SliderMove(text: "青色 −\(amount(4 + 9 * sev))", why: "若画面明显发青，直接在青色通道减青"),
                     SliderMove(text: "绿色 −\(amount(3 + 8 * sev))", why: "若画面明显发绿，在绿色通道减绿")
@@ -506,6 +538,7 @@ enum ColorEngine {
             ChannelStep(
                 channel: "整体明度",
                 headline: "第三步：轻微提亮",
+                path: "\(lightenPath)；或用「亮度/对比度」调整图层，把「亮度」往右拖一点点（幅度要小，避免高光溢出）。",
                 moves: [
                     SliderMove(text: "亮度 +\(lighten)", why: "冷色容易显脏，提亮后更接近健康肤色")
                 ],
@@ -535,6 +568,7 @@ enum ColorEngine {
             ChannelStep(
                 channel: "微调",
                 headline: "肤色已在健康区间，只做微调",
+                path: selective("红色") + "，只把「青色」滑块拖 +2 ~ +4；提亮用\(lightenPath)。",
                 moves: [
                     SliderMove(text: "明度 +\(lighten)", why: "轻微提亮，让肤色更干净"),
                     SliderMove(text: "红色 青色 +2 ~ +4", why: "想更干净时，用青稍微压一点红，量一定要小")
@@ -582,6 +616,7 @@ enum ColorEngine {
             ChannelStep(
                 channel: "中性灰 / 白色",
                 headline: "第一步：洗掉环境染上的颜色",
+                path: selective("中性灰") + "（整张画面都被染上同一层色时改选「白色」），再把与主色对应的补色滑块往正方向拖。" + cmyNote,
                 moves: washMoves,
                 reason: "有色光源、混合光、强滤镜会给整张画面加一层颜色，男女老少全被染成同一个色相："
                     + "先减掉这个颜色，后面的明度与彩度调整才有意义。"
@@ -594,6 +629,7 @@ enum ColorEngine {
             steps.append(ChannelStep(
                 channel: "中性灰",
                 headline: "第三步：补回彩度（红 / 绿 / 蓝）",
+                path: selective("中性灰") + selectiveTail + "。" + cmyNote,
                 moves: [
                     SliderMove(text: "红色 +\(r)", why: "补回血色，红给得最多"),
                     SliderMove(text: "绿色 +\(g)", why: "红绿相加趋白，灰败感才会消失"),
@@ -606,6 +642,7 @@ enum ColorEngine {
             steps.append(ChannelStep(
                 channel: "中性灰",
                 headline: "第三步：压掉过浓的彩度",
+                path: selective("中性灰") + "，把补色对应的滑块往正方向拖（加补色＝压彩度）：加青 / 洋红 / 黄直接用同名滑块，补色是红用「青色」、绿用「洋红」、蓝用「黄色」。",
                 moves: [SliderMove(text: "\(complement) +\(amount(5 + 10 * sev))",
                                    why: "补充一点互补色，颜色会往中性靠，彩度自然降下来")],
                 reason: "环境彩光容易把肤色染得过浓，加它的补色让它退回肤色的灰调程度。"
@@ -641,6 +678,7 @@ enum ColorEngine {
             return ChannelStep(
                 channel: "整体明度",
                 headline: "第二步：压低过亮的明度",
+                path: "在「可选颜色」里选「中性灰」通道，把「黑色」滑块往正方向拖（黑色 +N 即压暗）；也可\(darkenPath)。",
                 moves: [SliderMove(text: "明度 −\(amount(4 + 8 * sev))",
                                    why: "环境过曝把肤色冲得太亮，先压回 30%–85% 的肤色明度区间")],
                 reason: "明度不在区间内时先归位再细调颜色，否则很容易越调越脏。")
@@ -649,6 +687,7 @@ enum ColorEngine {
         return ChannelStep(
             channel: "整体明度",
             headline: hsb.brightness < 0.40 ? "第二步：把明度拉回肤色区间" : "第二步：轻微提亮",
+            path: "在「可选颜色」里选「中性灰」通道，把「黑色」滑块往负方向拖（黑色 −N 即提亮）；也可\(lightenPath)。",
             moves: [SliderMove(text: "明度 +\(lighten)", why: "肤色要透亮；在「可选颜色」里即黑色 −\(lighten)")],
             reason: "明度不在区间内时先归位再细调颜色，否则很容易越调越脏。")
     }
@@ -783,6 +822,8 @@ enum ColorEngine {
             primaryPair: primaries,
             complementPair: complements,
             grayness: g,
+            path: selective("中性灰") + "（整幅画面偏色时改选「白色」），再把下面各条里的补色换算成底部滑块："
+                + "青 / 洋红 / 黄 直接用同名滑块拖负值，红 ⇒「青色」拖正值、绿 ⇒「洋红」拖正值、蓝 ⇒「黄色」拖正值。",
             moves: moves,
             summary: "互补色以 50% 相混就会变成灰，所以颜色发灰就是补色混进来的证据："
                 + "减补色与加主色是同一件事，把补色降掉，主色就回到干净状态。\(level)",

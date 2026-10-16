@@ -1,7 +1,8 @@
 import AppKit
 import SwiftUI
 
-/// 主界面：左「取色与数值」、中「色相环」、右「调整建议」
+/// 肤色取色界面：左「取色与数值」、中「色相环」、右「调整建议」
+/// 本视图由 ShellView 在「肤色取色」功能区里渲染。
 struct ContentView: View {
 
     @EnvironmentObject private var model: AppModel
@@ -14,8 +15,7 @@ struct ContentView: View {
             Divider()
             ScrollView { AdvicePanel().padding(16) }.frame(width: 380)
         }
-        .frame(minWidth: 1040, minHeight: 660)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -326,6 +326,7 @@ struct AdvicePanel: View {
                     card(title: "第 \(index + 1) 步 · 通道「\(step.channel)」", accent: accent) {
                         VStack(alignment: .leading, spacing: 8) {
                             Text(step.headline).font(.system(size: 12, weight: .semibold))
+                            psPathRow(step.path, accent: accent)
                             ForEach(step.moves.indices, id: \.self) { moveIndex in
                                 let move = step.moves[moveIndex]
                                 HStack(alignment: .top, spacing: 8) {
@@ -367,7 +368,7 @@ struct AdvicePanel: View {
                     VStack(alignment: .leading, spacing: 6) {
                         ForEach(["1. 按 \(model.hotKeyDisplay) 唤出取色放大镜，在皮肤中性区域（如颧骨）单击取色。",
                                  "2. 取色点会自动标记为「肤色」或「非肤色」；色盘会标出它在色相环上的位置，并显示它的互补色与目标肤色。",
-                                 "3. 右侧按「偏红 / 偏橙 / 偏灰偏脏 / 偏黄偏冷」给出通道级调整量，可直接照着在「可选颜色」里调。"],
+                                 "3. 右侧按「偏红 / 偏橙 / 偏灰偏脏 / 偏黄偏冷」给出通道级调整量；每条建议都写明在 Photoshop 里进哪个对话框、选哪个通道、动哪些滑块。"],
                                 id: \.self) { line in
                             Text(line).font(.system(size: 11)).foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -404,6 +405,7 @@ struct AdvicePanel: View {
                         .font(.system(size: 11, weight: .semibold, design: .monospaced))
                         .foregroundStyle(advice.isClean ? .secondary : .primary)
                 }
+                psPathRow(advice.path, accent: tint)
                 ForEach(advice.moves.indices, id: \.self) { index in
                     let move = advice.moves[index]
                     HStack(alignment: .top, spacing: 8) {
@@ -456,6 +458,19 @@ struct AdvicePanel: View {
         return "方向提示：肤色步骤要求削掉\(mood)（加青加蓝），去灰要求减青减蓝，两者方向相反。"
             + "因为目的不同——去灰是「保留当前色相、只去灰」，肤色建议是「改变色偏」。"
             + "想让皮肤干净就按肤色步骤，想让这个颜色本身更纯就按去灰。"
+    }
+
+    /// 在 Photoshop 里怎么走：菜单 / 面板路径与要点
+    private func psPathRow(_ path: String, accent: Color) -> some View {
+        HStack(alignment: .top, spacing: 6) {
+            Image(systemName: "arrow.turn.down.right")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundColor(accent)
+            Text(path)
+                .font(.system(size: 11))
+                .foregroundStyle(accent)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     private func badge(_ text: String, tint: Color) -> some View {
