@@ -1,4 +1,4 @@
-// 生成「肤色助手」应用图标：深色圆角方底 + HSV 色相环 + 取色环标记 + 吸管
+// 生成「修图助手」应用图标：深色圆角方底 + HSV 色相环 + 取色环标记 + 吸管
 //
 // 用法：
 //   swiftc -O -o /tmp/make-icon Tools/make-icon.swift && /tmp/make-icon

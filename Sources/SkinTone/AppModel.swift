@@ -19,25 +19,85 @@ final class AppModel: ObservableObject {
     @Published var section: AppSection = .skin
     /// 左侧侧边栏是否展开
     @Published var isSidebarVisible = true
+    /// 是否正在让用户录入新的取色快捷键
+    @Published var isRecordingHotKey = false
+    /// 当前生效的取色快捷键
+    @Published private(set) var hotKey: HotKey = .defaultPick
+    /// 当前快捷键是否注册成功
+    @Published private(set) var isHotKeyRegistered = false
 
     let hotKeys = HotKeyManager()
     private let picker = ColorPickerService()
 
     private init() {}
 
-    var hotKeyDisplay: String { hotKeys.displayString }
-
-    var hotKeyRegistered: Bool { hotKeys.isRegistered }
+    var hotKeyDisplay: String { hotKey.displayString }
 
     // MARK: - 快捷键
 
+    /// 启动时注册：优先用用户上次设定的组合键，被占用则回退到默认
     func registerHotKey() {
         hotKeys.onFire = { [weak self] in self?.startPick() }
-        let ok = hotKeys.register()
-        if !ok {
-            lastMessage = "全局快捷键注册失败，请改用菜单「开始取色」"
+
+        if let saved = HotKey.saved(), hotKeys.register(saved) {
+            hotKey = saved
+            isHotKeyRegistered = true
+            return
         }
-        objectWillChange.send()
+        if hotKeys.register(.defaultPick) {
+            hotKey = .defaultPick
+            isHotKeyRegistered = true
+            lastMessage = HotKey.saved() == nil
+                ? nil
+                : "上次设定的快捷键已被占用，已回退到默认 \(HotKey.defaultPick.displayString)"
+            return
+        }
+        hotKey = hotKeys.current
+        isHotKeyRegistered = false
+        lastMessage = "全局快捷键注册失败，请改用菜单「开始取色」"
+    }
+
+    /// 换成用户刚录下的组合键；注册失败就退回原来那个可用组合，并说明原因
+    func updateHotKey(_ newValue: HotKey) {
+        guard newValue != hotKey else { return }
+        let previous = hotKey
+        guard hotKeys.register(newValue) else {
+            _ = hotKeys.register(previous)   // 把原来能用的组合装回去
+            isHotKeyRegistered = false
+            setMessage("\(newValue.displayString) 注册失败：可能已被系统或其他应用占用，快捷键保持 \(previous.displayString)")
+            return
+        }
+        hotKey = newValue
+        isHotKeyRegistered = true
+        newValue.save()
+        setMessage("取色快捷键已改为 \(newValue.displayString)")
+    }
+
+    /// 恢复默认 ⌃⌥C
+    func resetHotKey() {
+        isRecordingHotKey = false
+        guard hotKey != .defaultPick else {
+            HotKey.clearSaved()
+            setMessage("取色快捷键已是默认的 \(HotKey.defaultPick.displayString)")
+            return
+        }
+        updateHotKey(.defaultPick)
+        if hotKey == .defaultPick { HotKey.clearSaved() }
+    }
+
+    func beginRecordingHotKey() {
+        isRecordingHotKey = true
+        setMessage("请按下新的组合键：至少含 ⌃ / ⌥ / ⌘ 之一，Esc 取消，⌫ 恢复默认")
+    }
+
+    func cancelRecordingHotKey() {
+        isRecordingHotKey = false
+        setMessage("已取消更改快捷键，仍为 \(hotKeyDisplay)")
+    }
+
+    func applyRecordedHotKey(_ newValue: HotKey) {
+        isRecordingHotKey = false
+        updateHotKey(newValue)
     }
 
     // MARK: - 取色

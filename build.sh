@@ -1,5 +1,5 @@
 #!/bin/bash
-# 构建「肤色助手」：用 swiftc 直接编译并打包成可双击运行的 .app
+# 构建「修图助手」：用 swiftc 直接编译并打包成可双击运行的 .app
 #
 # 说明：本机只安装了 Command Line Tools（未安装 Xcode），该 CLT 的 SwiftPM
 # 在编译 Package.swift 清单时存在链接缺陷，因此这里直接调用 swiftc 编译，
@@ -9,7 +9,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 APP_NAME="SkinTone"
-APP_DIR="Build/肤色助手.app"
+APP_DIR="Build/修图助手.app"
 DEPLOYMENT_TARGET="arm64-apple-macos13.0"
 
 echo "==> 编译源码 (release, arm64)"

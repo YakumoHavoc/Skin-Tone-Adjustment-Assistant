@@ -12,7 +12,7 @@ struct SkinToneApp: App {
     }
 
     var body: some Scene {
-        Window("肤色助手 · 取色与调色建议", id: "main") {
+        Window("修图助手", id: "main") {
             ShellView()
                 .environmentObject(model)
         }

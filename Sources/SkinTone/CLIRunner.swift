@@ -12,6 +12,17 @@ enum CLIRunner {
             exit(0)
         }
 
+        // 文件名对应：SkinTone --rename-folders <原图夹> <返图夹> [--apply]
+        if let renameIndex = args.firstIndex(where: { $0 == "--rename-folders" || $0 == "-r" }) {
+            guard renameIndex + 2 < args.count else {
+                FileHandle.standardError.write(
+                    "用法：SkinTone --rename-folders <原图文件夹> <返图文件夹> [--apply]\n".data(using: .utf8)!)
+                exit(1)
+            }
+            runRenameFolders(original: args[renameIndex + 1], returned: args[renameIndex + 2],
+                             apply: args.contains("--apply"))
+        }
+
         // 照片仿色：SkinTone --match <参考图> <待仿色图>
         if let matchIndex = args.firstIndex(where: { $0 == "--match" || $0 == "-m" }) {
             guard matchIndex + 2 < args.count else {
@@ -111,9 +122,37 @@ enum CLIRunner {
         return result.stats
     }
 
+    /// 文件名对应：比对两个文件夹里图像的画面内容，把返图改回原图的名字。
+    /// 默认只打印预览报告；加 `--apply` 才真的改名（只动返图文件夹）。
+    private static func runRenameFolders(original: String, returned: String, apply: Bool) {
+        let originalFolder = URL(fileURLWithPath: (original as NSString).expandingTildeInPath)
+        let returnedFolder = URL(fileURLWithPath: (returned as NSString).expandingTildeInPath)
+
+        for folder in [originalFolder, returnedFolder] {
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: folder.path, isDirectory: &isDirectory),
+                  isDirectory.boolValue else {
+                FileHandle.standardError.write("「\(folder.path)」不存在或不是文件夹\n".data(using: .utf8)!)
+                exit(1)
+            }
+        }
+
+        let originalScan = FolderRenameEngine.scan(folder: originalFolder)
+        let returnedScan = FolderRenameEngine.scan(folder: returnedFolder)
+        let matches = FolderRenameEngine.match(originals: originalScan.files, returned: returnedScan.files)
+        let plan = FolderRenameEngine.plan(matches: matches, includeUncertain: false,
+                                           returnedFolder: returnedFolder)
+        let outcome = apply ? FolderRenameEngine.execute(plan) : nil
+
+        print(FolderRenameEngine.report(originalScan: originalScan, returnedScan: returnedScan,
+                                        matches: matches, plan: plan, outcome: outcome,
+                                        includeUncertain: false))
+        exit(0)
+    }
+
     private static func printUsage() {
         print("""
-        肤色助手 v1.1 — 屏幕取色 / 照片仿色建议
+        修图助手 v1.2 — 屏幕取色 / 照片仿色 / 文件名对应（补回拍摄信息）
 
         用法：
           SkinTone                     启动图形界面（全局快捷键 ⌃⌥C 取色）
@@ -124,10 +163,15 @@ enum CLIRunner {
                                        手动指定为非肤色（只看颜色本身）
           SkinTone --match 参考图 待调图
                                        照片仿色：比对两张图并输出 Photoshop 仿色建议
+          SkinTone --rename-folders 原图夹 返图夹
+                                       文件名对应：按画面内容比对两个文件夹并输出改名预览
+          SkinTone --rename-folders 原图夹 返图夹 --apply
+                                       确认无误后执行改名（只改返图夹里的文件名），
+                                       同时把原图的 Exif / IPTC / TIFF 无损补写进返图
           SkinTone --help              显示本帮助
 
-        图形界面左侧有可隐藏的侧边栏，在其中切换「肤色取色 / 照片仿色」；
-        侧边栏收起后，用窗口左上角的侧边栏按钮可以重新展开。
+        图形界面左侧有可隐藏的侧边栏，在其中切换「肤色取色 / 照片仿色 / 文件名对应」；
+        各功能区共用同一个窗口，侧边栏收起后，用窗口左上角的侧边栏按钮可以重新展开。
         """)
     }
 }

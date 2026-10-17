@@ -91,6 +91,12 @@ struct PickerPanel: View {
                 .foregroundStyle(model.isPicking ? .primary : .secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
+            Divider()
+
+            hotKeySection
+
+            Divider()
+
             HStack(spacing: 6) {
                 TextField("手动输入 #RRGGBB", text: $model.hexInput)
                     .textFieldStyle(.roundedBorder)
@@ -166,6 +172,51 @@ struct PickerPanel: View {
     /// 「自动 / 肤色 / 非肤色」三态绑定
     private var kindBinding: Binding<SkinKind?> {
         Binding(get: { model.manualKind }, set: { model.setManualKind($0) })
+    }
+
+    /// 取色快捷键的查看与自定义
+    private var hotKeySection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Text("取色快捷键").font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+                Text(model.hotKeyDisplay)
+                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.primary.opacity(0.06),
+                                in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+            }
+
+            if model.isRecordingHotKey {
+                KeyCaptureField(onCapture: { model.applyRecordedHotKey($0) },
+                                onCancel: { model.cancelRecordingHotKey() },
+                                onReset: { model.resetHotKey() })
+                    .frame(height: 30)
+                    .background(RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.primary.opacity(0.05)))
+                    .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .stroke(Color.accentColor, lineWidth: 1.5))
+                    .overlay(Text("按下组合键…").font(.system(size: 11)).foregroundStyle(.tertiary))
+                HStack(spacing: 8) {
+                    Button("取消") { model.cancelRecordingHotKey() }.font(.system(size: 12))
+                    Button("恢复默认") { model.resetHotKey() }.font(.system(size: 12))
+                }
+            } else {
+                HStack(spacing: 8) {
+                    Button("更改快捷键") { model.beginRecordingHotKey() }.font(.system(size: 12))
+                    Button("恢复默认") { model.resetHotKey() }.font(.system(size: 12))
+                        .disabled(model.hotKey == HotKey.defaultPick)
+                }
+            }
+
+            Text(model.isHotKeyRegistered
+                 ? "点「更改快捷键」后直接按下新的组合键：至少含 ⌃ / ⌥ / ⌘ 之一，Esc 取消，⌫ 恢复默认。设置会被记住，下次启动自动生效。"
+                 : "当前组合键没有注册成功：可能已被系统或其他应用占用，换一个试试，或用菜单「开始取色」。")
+                .font(.system(size: 11))
+                .foregroundStyle(model.isHotKeyRegistered ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.red))
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     /// 判定方式的说明文字
