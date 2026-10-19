@@ -58,26 +58,44 @@ struct ShellView: View {
     @EnvironmentObject private var model: AppModel
 
     var body: some View {
-        HStack(spacing: 0) {
-            if model.isSidebarVisible {
-                SidebarPanel()
+        // 注意：这里刻意不用窗口工具栏（`.toolbar`）。只要窗口带了工具栏，系统就会在
+        // 工具栏上挂一个「图标和文本 / 仅图标」的右键菜单，对本应用没有意义。
+        // 侧边栏的展开按钮因此改放在内容区左上角，收起时才出现。
+        VStack(spacing: 0) {
+            if !model.isSidebarVisible {
+                HStack(spacing: 0) {
+                    Button {
+                        model.isSidebarVisible = true
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "sidebar.left")
+                                .font(.system(size: 12, weight: .semibold))
+                            Text("显示侧边栏").font(.system(size: 11))
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .help("显示侧边栏")
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 12)
+                .padding(.top, 10)
+                .padding(.bottom, 8)
                 Divider()
             }
-            currentSection
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            HStack(spacing: 0) {
+                if model.isSidebarVisible {
+                    SidebarPanel()
+                    Divider()
+                }
+                currentSection
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
         .frame(minWidth: 1200, minHeight: 680)
         .background(Color(nsColor: .windowBackgroundColor))
-        .toolbar {
-            ToolbarItem(placement: .navigation) {
-                Button {
-                    model.isSidebarVisible.toggle()
-                } label: {
-                    Image(systemName: "sidebar.left")
-                }
-                .help(model.isSidebarVisible ? "隐藏侧边栏" : "显示侧边栏")
-            }
-        }
     }
 
     @ViewBuilder
@@ -115,7 +133,7 @@ struct SidebarPanel: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
-                .help("隐藏侧边栏（可用窗口左上角的侧边栏按钮恢复）")
+                .help("隐藏侧边栏（收起后内容区左上角会出现「显示侧边栏」按钮）")
             }
             .padding(.horizontal, 12)
             .padding(.top, 14)
