@@ -5,6 +5,7 @@ enum AppSection: String, CaseIterable, Hashable, Identifiable {
     case skin
     case photoMatch
     case folderRename
+    case toPSD
 
     var id: String { rawValue }
 
@@ -13,6 +14,7 @@ enum AppSection: String, CaseIterable, Hashable, Identifiable {
         case .skin:         return "肤色取色"
         case .photoMatch:   return "照片仿色"
         case .folderRename: return "文件名对应"
+        case .toPSD:        return "JPG 转 PSD"
         }
     }
 
@@ -21,6 +23,7 @@ enum AppSection: String, CaseIterable, Hashable, Identifiable {
         case .skin:         return "eyedropper.halffull"
         case .photoMatch:   return "photo.on.rectangle.angled"
         case .folderRename: return "arrow.left.arrow.right"
+        case .toPSD:        return "doc.text.image"
         }
     }
 
@@ -29,6 +32,7 @@ enum AppSection: String, CaseIterable, Hashable, Identifiable {
         case .skin:         return "屏幕取色 · 通道级调色建议"
         case .photoMatch:   return "参考图对比 · 先影调后色调"
         case .folderRename: return "文件夹比对 · 改名并补回拍摄信息"
+        case .toPSD:        return "批量 JPG · 无损转 PSD · 保留拍摄信息"
         }
     }
 
@@ -41,6 +45,8 @@ enum AppSection: String, CaseIterable, Hashable, Identifiable {
             return "导入参考图与待仿色图（可点选，也可从 Finder 直接拖进卡片），比对整图的影调与色调，给出 Photoshop 里的具体操作。"
         case .folderRename:
             return "左选原图文件夹、右选模特修脸返图的文件夹（可点选，也可从 Finder 拖进来）。按画面内容逐张比对，把返图那串英文数字的名字改回原图的名字，同时把原图的 Exif / IPTC / TIFF 拍摄信息补回返图（文件名本来就一致的照片不改名、照样补信息）；先预览再执行，可一键撤销。"
+        case .toPSD:
+            return "把一批 JPG 批量转成 PSD 供 Photoshop 修图：像素原样写入（Raw 或无损 RLE，逐字节一致），保留 ICC、DPI 与 Exif / IPTC / XMP 拍摄信息（相机、镜头、拍摄参数、日期、GPS、版权都写进 PSD 的图像资源，原图没有这一段就自动跳过），默认按 EXIF 无损摆正方向。添加图片或文件夹（可点选，也可从 Finder 拖进来），可选输出目录与覆盖策略，后台并行转换、随时可停。"
         }
     }
 }
@@ -80,6 +86,7 @@ struct ShellView: View {
         case .skin:         ContentView()
         case .photoMatch:   PhotoMatchView()
         case .folderRename: FolderRenameView()
+        case .toPSD:        ToPSDView()
         }
     }
 }

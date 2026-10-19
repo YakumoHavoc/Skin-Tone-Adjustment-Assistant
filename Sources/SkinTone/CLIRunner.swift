@@ -7,6 +7,23 @@ enum CLIRunner {
     static func runIfNeeded() {
         let args = CommandLine.arguments
 
+        // JPG 转 PSD：SkinTone --to-psd <与原来 JPG2PSD 相同的参数>
+        // 放在最前面，这样 `--to-psd --help` 显示的是它自己的帮助
+        if let psdIndex = args.firstIndex(of: "--to-psd") {
+            exit(PSDCLIRunner.run(Array(args[(psdIndex + 1)...])))
+        }
+
+        // 隐藏用法（自检）：SkinTone --dump-planar <输出目录> <输入…>
+        if let dumpIndex = args.firstIndex(of: "--dump-planar") {
+            guard dumpIndex + 1 < args.count else {
+                FileHandle.standardError.write(
+                    "用法：SkinTone --dump-planar <输出目录> <输入…>\n".data(using: .utf8)!)
+                exit(2)
+            }
+            exit(PSDCLIRunner.dumpPlanar(outputDirectory: args[dumpIndex + 1],
+                                         paths: Array(args[(dumpIndex + 2)...])))
+        }
+
         if args.contains("--help") || args.contains("-h") {
             printUsage()
             exit(0)
@@ -152,7 +169,7 @@ enum CLIRunner {
 
     private static func printUsage() {
         print("""
-        修图助手 v1.2 — 屏幕取色 / 照片仿色 / 文件名对应（补回拍摄信息）
+        修图助手 v1.3 — 屏幕取色 / 照片仿色 / 文件名对应（补回拍摄信息）/ JPG 转 PSD
 
         用法：
           SkinTone                     启动图形界面（全局快捷键 ⌃⌥C 取色）
@@ -168,9 +185,13 @@ enum CLIRunner {
           SkinTone --rename-folders 原图夹 返图夹 --apply
                                        确认无误后执行改名（只改返图夹里的文件名），
                                        同时把原图的 Exif / IPTC / TIFF 无损补写进返图
+          SkinTone --to-psd 输入… [选项]
+                                       JPG 转 PSD：批量把 JPG 无损转成 PSD，
+                                       --to-psd 后的参数与原 JPG2PSD 一致
+          SkinTone --to-psd --help     查看 JPG 转 PSD 的完整参数
           SkinTone --help              显示本帮助
 
-        图形界面左侧有可隐藏的侧边栏，在其中切换「肤色取色 / 照片仿色 / 文件名对应」；
+        图形界面左侧有可隐藏的侧边栏，在其中切换「肤色取色 / 照片仿色 / 文件名对应 / JPG 转 PSD」；
         各功能区共用同一个窗口，侧边栏收起后，用窗口左上角的侧边栏按钮可以重新展开。
         """)
     }

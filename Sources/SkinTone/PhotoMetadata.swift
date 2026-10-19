@@ -25,7 +25,9 @@ enum PhotoMetadataCopier {
     ///   照抄原图的尺寸会让元数据与实际画面矛盾（实测确实会写错）；
     /// - `tiff:Orientation`：原图若带 90°/270° 旋转标记，而返图导出时像素已经摆正，
     ///   照抄这个标记会让返图在看图软件里被显示成歪的。
-    private static let unsafeTagPaths: [CFString] = [
+    ///
+    /// JPG 转 PSD 生成 XMP 时也按同一口径摘（见 ImageLoader.xmp）。
+    static let unsafeTagPaths: [CFString] = [
         "exif:PixelXDimension" as CFString,
         "exif:PixelYDimension" as CFString,
         "tiff:Orientation" as CFString,
